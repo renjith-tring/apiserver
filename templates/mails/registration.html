@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Verification Mail</title>
+   </head>
+   <body>
+      <tr>
+         <td valign="top" style="padding:0px 6px 10px;border:0px;">
+            <table width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#FFFFFF">
+               <tbody>
+                  <tr>
+                     <td valign="top" style="line-height:18px;font:normal 12px arial;padding:15px 15px 0;color:#1d1d1d;">
+                        <span style="font:bold 12px arial;">Hello {{username}},</span>
+                        <span style="display:block;padding:5px 0px 10px;color:#000000;padding-top:15px;font-size:13px;">Thanks for registering</span>
+                     </td>
+                  </tr>
+                  <tr>
+                     <td valign="top" style="font:normal 12px arial;padding:15px;color:#1d1d1d;"><span style="font:bold 12px arial;">Account Details</span>
+                        <span style="display:block;padding:5px 0px 10px;color:#000000;padding-top:15px;font-size:13px;">
+                        Username : <b> {{username}} </b>
+                        </span>
+                        <span style="display:block;padding:5px 0px 10px;color:#000000;font-size:13px;">We're delighted to get the oppertunity to make it all about you!</span>
+                     </td>
+                  </tr>
+                  <tr>
+                     <td valign="top" style="font:normal 12px arial;padding:15px;color:#1d1d1d;">
+                        <span style="font:bold 12px arial;">Please verify your E-Mail id for full access</span>
+                        <table style="background:#0e7abb;width:auto;color:#fff;text-align:center;font:bold 12px arial;border-radius:4px;height:32px;width:75px; margin-top: 15px;">
+                           <tbody>
+                              <tr>
+                                 <td>
+                                    <a href="{{site_url}}verify/{{verification_code}}" target="_blank" style=" text-decoration: none; color: white; ">Verify</a>
+                                 </td>
+                              </tr>
+
+                           </tbody>
+                        </table>
+                     </td>
+                  </tr>
+               </tbody>
+            </table>
+         </td>
+      </tr>
+   </body>
+</html>
