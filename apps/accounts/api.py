@@ -9,17 +9,17 @@ from tastypie.exceptions import BadRequest
 from django.conf.urls import patterns, url
 from django.http import HttpResponse
 from tastypie.utils import trailing_slash
-from apps.accounts.models import UserProfile
+from apps.accounts.models import UserProfile, ApiKey
 import sha, random, datetime, json
 from django.contrib.auth.hashers import make_password
 from .custom.exceptions import *
-
+import uuid
 
 class UserResource(ModelResource):
 
 	class Meta:
 		queryset = UserProfile.objects.all()
-		allowed_methods = ['get', 'post', 'patch']
+		allowed_methods = ['post']
 		resource_name = 'user'
 		excludes = ('id', 'passowrd')
 		authorization = Authorization()
@@ -73,16 +73,24 @@ class UserResource(ModelResource):
 	def prepend_urls(self):
 		return [
 
+			## Email Verification
 			url(r"^(?P<resource_name>%s)/verify/(?P<activation_token>\w[\w/-]*)%s$" %
 				(self._meta.resource_name, trailing_slash()),
 				self.wrap_view('email_verify'), name="email_verify"),
 
+			## User Login
 			url(r"^(?P<resource_name>%s)/signin%s$" %(self._meta.resource_name, trailing_slash()),
 				self.wrap_view('signin'), name="api_signin"),
 
+			## User Log out
 			url(r'^(?P<resource_name>%s)/logout%s$' %
 				(self._meta.resource_name, trailing_slash()),
 				self.wrap_view('logout'), name='api_logout'),
+
+			## Change Password
+			url(r'^(?P<resource_name>%s)/changepassword%s$' %
+				(self._meta.resource_name, trailing_slash()),
+				self.wrap_view('change_password'), name='change_password'),
 
 			]
 
@@ -105,6 +113,13 @@ class UserResource(ModelResource):
 
 		data = json.loads(request.body)
 		# user_type = request.POST['user_type']
+		REQUIRED_FIELDS = ('username','password')
+		for field in REQUIRED_FIELDS:
+			if field not in data:
+				raise CustomBadRequest(
+					code='missing_key',
+					message=('Must provide {missing_key} when try to login'
+							 ' user.').format(missing_key=field))
 		if data.has_key('username') and data.has_key('password'):
 			username = data.get('username')
 			password = data.get('password')
@@ -112,7 +127,9 @@ class UserResource(ModelResource):
 			if user is not None:
 				if user.is_active:
 					login(request, user)
-					return self.create_response(request, {'success': True,"message":"successfully logined"})
+					api_user = ApiKey.objects.get(user=user)
+					token = api_user.key
+					return self.create_response(request, {'success': True,"message":"successfully logined",'username':request.user.username,'token':token})
 				else:
 					# Return a 'disabled account' error message
 					return self.create_response(request, {'status': False,"message":"User is not active please verify your mal"})
@@ -123,11 +140,50 @@ class UserResource(ModelResource):
 			return self.create_response(request, {'success': False,"message":"please enter valid data"})
 
 	def logout(self, request, **kwargs):
-		if logout(request):
-			return self.create_response(request, {'status': True,"message":"Successfully loged out"})
-		else:
-			data = {"status":"Error","message":"somthing went wrong"}
-			return self.error_response(request,data)
-		# else:
-		# 	return HttpResponse(json.dumps({ 'success': False }))
+		logout(request)
+		return self.create_response(request, {'status': True,"message":"{0} Successfully loged out" .format(username)}) 
+	
+	@staticmethod
+	def is_user_authenticated(apiKey):
+		apiKey = str(apiKey)
+		try:
+			ApiKey.objects.get(key=apiKey)
+			return True
+		except ObjectDoesNotExist:
+			return False
+	@staticmethod
+	def verifying(apiKey):
+		apiKey = str(apiKey)
+		try:
+			user_api = ApiKey.objects.get(key=apiKey)
+			user = UserProfile.objects.get(id=user_api.user.id)
+			return user
+		except ObjectDoesNotExist:
+			return False
 
+	def change_password(self,request,**kwargs):
+		REQUIRED_FIELDS = ('api_token','oldpassword', 'newpwd', 'confirmpwd')
+		data = json.loads(request.body)
+		for field in REQUIRED_FIELDS:
+			if field not in data:
+				raise CustomBadRequest(
+					code='missing_key',
+					message=('Must provide {missing_key} when try to change password').format(missing_key=field))
+		if data.has_key('api_token'):
+			if self.is_user_authenticated(data.get('api_token')):
+				user = self.verifying(data.get('api_token'))
+				if user.check_password(data.get('oldpassword')):
+					print user.username
+					if data.get('newpwd') == data.get('confirmpwd'):
+						conpwd = data.get('confirmpwd')
+						user.set_password(conpwd)
+						user.save()
+						return self.create_response(request, {'status': True,"message":"{0} successfully change the password" .format(user.username)})
+					else:
+						return self.create_response(request, {'status': False,"message":" newpassword and confirm password should be same"})
+				else:
+					return self.create_response(request, {'status': False,"message":" Wrong old password"})
+			else:
+				return self.create_response(request, {'status': False,"message":" API token not found"})
+		else:
+			return self.create_response(request, {'status': False,"message":"Missing Api token"})

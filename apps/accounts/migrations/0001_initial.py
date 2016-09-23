@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 from django.db import models, migrations
 import django.utils.timezone
+import datetime
 from django.conf import settings
 
 
@@ -13,6 +14,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.CreateModel(
+            name='ApiKey',
+            fields=[
+                ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
+                ('key', models.CharField(default=b'', max_length=256, blank=True)),
+                ('created', models.DateTimeField(default=datetime.datetime.now)),
+            ],
+            options={
+            },
+            bases=(models.Model,),
+        ),
         migrations.CreateModel(
             name='UserProfile',
             fields=[
@@ -43,5 +55,11 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'User',
             },
             bases=(models.Model,),
+        ),
+        migrations.AddField(
+            model_name='apikey',
+            name='user',
+            field=models.OneToOneField(related_name='api_key', to='accounts.UserProfile'),
+            preserve_default=True,
         ),
     ]

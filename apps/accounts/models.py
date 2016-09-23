@@ -5,6 +5,7 @@ from django.core.validators import RegexValidator
 import datetime,re
 from django.utils import timezone
 USER_ROLE = (('ST','Student'),('CM','Company'))
+import uuid, hmac, hashlib
 
 
 class MyUserManager(BaseUserManager):
@@ -77,3 +78,31 @@ class UserProfile(AbstractBaseUser):
         expiration_date = datetime.timedelta(days=15)
         return self.token_generated + expiration_date <= timezone.now()
 
+
+class ApiKey(models.Model):
+    user = models.OneToOneField(UserProfile, related_name='api_key')
+    key = models.CharField(max_length=256, blank=True, default='')
+    created = models.DateTimeField(default=datetime.datetime.now)
+
+    def __unicode__(self):
+        return u"%s for %s" % (self.key, self.user)
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+
+        return super(ApiKey, self).save(*args, **kwargs)
+
+    def generate_key(self):
+        # Get a random UUID.
+        new_uuid = str(uuid.uuid1())
+        # Hmac that beast.
+        return hashlib.sha1(new_uuid).hexdigest()
+
+
+def create_api_key(sender, **kwargs):
+    """
+    A signal for hooking up automatic ``ApiKey`` creation.
+    """
+    if kwargs.get('created') is True:
+        ApiKey.objects.create(user=kwargs.get('instance'))
