@@ -14,6 +14,9 @@ import sha, random, datetime, json
 from django.contrib.auth.hashers import make_password
 from .custom.exceptions import *
 import uuid
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from apps.accounts.forms import PasswordResetForm
 
 class UserResource(ModelResource):
 
@@ -91,6 +94,14 @@ class UserResource(ModelResource):
 			url(r'^(?P<resource_name>%s)/changepassword%s$' %
 				(self._meta.resource_name, trailing_slash()),
 				self.wrap_view('change_password'), name='change_password'),
+
+			## Reset Links for Forget password
+			url(r'^(?P<resource_name>%s)/mail_token%s' %(self._meta.resource_name, trailing_slash()),
+				self.wrap_view('mail_token'), name='api_passwordreset_mail_token'),
+
+			## Change the password
+			url(r'(?P<resource_name>%s)/passwordchange/(?P<mail_token>\w[\w/-]*)%s$'% (self._meta.resource_name, trailing_slash()),
+				self.wrap_view('change'), name='api_passwordreset_change'),
 
 			]
 
@@ -187,3 +198,41 @@ class UserResource(ModelResource):
 				return self.create_response(request, {'status': False,"message":" API token not found"})
 		else:
 			return self.create_response(request, {'status': False,"message":"Missing Api token"})
+
+
+	def mail_token(self, request, **kwargs):
+		self.method_check(request, allowed=['post'])
+		self.throttle_check(request)
+ 
+		# this metod comes from PostMixin and handles
+		# the deserialization + validation boilerplate
+		data = json.loads(request.body)
+
+		form = PasswordResetForm({'email': data.get('email')})
+		if form.is_valid():
+			form.save()
+			return self.create_response(request, {'message': 'Email successfully sent.'})
+		return self.error_response(request, {'message', 'Error processing the password reset.'})
+ 
+	def change(self, request, **kwargs):
+		self.method_check(request, allowed=['post'])
+		self.throttle_check(request)
+		data = json.loads(request.body)
+		UserModel = UserProfile()
+		try:
+			# token itself contains a hyphen so it's important to limit the split
+
+			if kwargs.has_key('mail_token'):
+				uidb64, token = kwargs.get('mail_token').split('-', 1)
+				assert uidb64 is not None and token is not None
+				uid = urlsafe_base64_decode(uidb64)
+				user = UserModel._default_manager.get(pk=uid)
+		except (AssertionError, TypeError, ValueError, OverflowError, UserModel.DoesNotExist):
+			user = None
+ 
+		if user is not None and default_token_generator.check_token(user, token):
+			if data.get('new_password') == data.get('new_password_again'):
+				user.set_password(data.get('new_password_again'))
+				user.save()
+				return self.create_response(request, {'message': 'Password reset successful.'})
+		return self.error_response(request, {'message': 'Error during password reset.'})
